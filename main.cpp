@@ -524,18 +524,15 @@ float Dot(Vector3 v1, Vector3 v2)
 }
 
 bool IsCollision(const AABB& a, const Segment& s) {
-	// 1. 線分の方向ベクトルを正しく計算
 	Vector3 segmentVec = subtract(s.diff, s.origin);
 
 	float txmin = (a.min.x - s.origin.x) / segmentVec.x;
 	float txmax = (a.max.x - s.origin.x) / segmentVec.x;
-	// ゼロ除算を避ける
 	if (std::fabs(segmentVec.x) < 1e-6f) {
-		// レイがAABBの外側にある場合、衝突しない
 		if (s.origin.x < a.min.x || s.origin.x > a.max.x) {
 			return false;
 		}
-		txmin = -std::numeric_limits<float>::infinity(); // 無限遠
+		txmin = -std::numeric_limits<float>::infinity(); 
 		txmax = std::numeric_limits<float>::infinity();
 	}
 	if (txmin > txmax) std::swap(txmin, txmax);
@@ -564,13 +561,9 @@ bool IsCollision(const AABB& a, const Segment& s) {
 	if (tzmin > tzmax) std::swap(tzmin, tzmax);
 
 
-	// 2. 各軸の交差tの範囲から、全体の交差範囲を求める
 	float tNear = max(max(txmin, tymin), tzmin);
 	float tFar = min(min(txmax, tymax), tzmax);
 
-	// 3. 判定ロジックを修正
-	//    交差範囲が存在し (tNear < tFar)、かつ
-	//    その交差範囲が線分 [0, 1] と重なっているか
 	if (tNear < tFar && tNear < 1.0f && tFar > 0.0f) {
 		return true;
 	}
