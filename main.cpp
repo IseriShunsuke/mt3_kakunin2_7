@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <imgui.h>
 #include <algorithm>
+#include <limits>
 
 const char kWindowTitle[] = "LC1D_03_イセリ_シュンスケ_タイトル";
 
@@ -522,35 +523,59 @@ float Dot(Vector3 v1, Vector3 v2)
 	return result;
 }
 
-bool IsCollision(const AABB& a, const Segment& s)
-{
-	float txmin = (a.min.x - s.origin.x) / s.diff.x;
-	float txmax = (a.max.x - s.origin.x) / s.diff.x;
-	float tymin = (a.min.y - s.origin.y) / s.diff.y;
-	float tymax = (a.max.y - s.origin.y) / s.diff.y;
-	float tzmin = (a.min.z - s.origin.z) / s.diff.z;
-	float tzmax = (a.max.z - s.origin.z) / s.diff.z;
+bool IsCollision(const AABB& a, const Segment& s) {
+	// 1. 線分の方向ベクトルを正しく計算
+	Vector3 segmentVec = subtract(s.diff, s.origin);
 
-	float tNearX = min(txmin, txmax);
-	float tFarX = max(txmin, txmax);
-	float tNearY = min(tymin, tymax);
-	float tFarY = max(tymin, tymax);
-	float tNearZ = min(tzmin, tzmax);
-	float tFarZ = max(tzmin, tzmax);
+	float txmin = (a.min.x - s.origin.x) / segmentVec.x;
+	float txmax = (a.max.x - s.origin.x) / segmentVec.x;
+	// ゼロ除算を避ける
+	if (std::fabs(segmentVec.x) < 1e-6f) {
+		// レイがAABBの外側にある場合、衝突しない
+		if (s.origin.x < a.min.x || s.origin.x > a.max.x) {
+			return false;
+		}
+		txmin = -std::numeric_limits<float>::infinity(); // 無限遠
+		txmax = std::numeric_limits<float>::infinity();
+	}
+	if (txmin > txmax) std::swap(txmin, txmax);
 
-	float tmin = max(max(tNearX, tNearY), tNearZ);
+	float tymin = (a.min.y - s.origin.y) / segmentVec.y;
+	float tymax = (a.max.y - s.origin.y) / segmentVec.y;
+	if (std::fabs(segmentVec.y) < 1e-6f) {
+		if (s.origin.y < a.min.y || s.origin.y > a.max.y) {
+			return false;
+		}
+		tymin = -std::numeric_limits<float>::infinity();
+		tymax = std::numeric_limits<float>::infinity();
+	}
+	if (tymin > tymax) std::swap(tymin, tymax);
 
-	float tmax = min(min(tFarX, tFarY), tFarZ);
 
-	if (tmin <= tmax)
-	{
+	float tzmin = (a.min.z - s.origin.z) / segmentVec.z;
+	float tzmax = (a.max.z - s.origin.z) / segmentVec.z;
+	if (std::fabs(segmentVec.z) < 1e-6f) {
+		if (s.origin.z < a.min.z || s.origin.z > a.max.z) {
+			return false;
+		}
+		tzmin = -std::numeric_limits<float>::infinity();
+		tzmax = std::numeric_limits<float>::infinity();
+	}
+	if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+
+	// 2. 各軸の交差tの範囲から、全体の交差範囲を求める
+	float tNear = max(max(txmin, tymin), tzmin);
+	float tFar = min(min(txmax, tymax), tzmax);
+
+	// 3. 判定ロジックを修正
+	//    交差範囲が存在し (tNear < tFar)、かつ
+	//    その交差範囲が線分 [0, 1] と重なっているか
+	if (tNear < tFar && tNear < 1.0f && tFar > 0.0f) {
 		return true;
 	}
-	else
-	{
-		return false;
-	}
 
+	return false;
 }
 
 
@@ -637,12 +662,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		DrawLine(segment, worldVeiwProjectionMatrix, viewPortMatrix, WHITE);
 
 		ImGui::Begin("Window");
-		ImGui::DragFloat3("aabb1.min", &aabb1.min.x, 0.01f);
-		ImGui::DragFloat3("aabb1.max", &aabb1.max.x, 0.01f);
+		ImGui::Text("Camera Control:");
+		ImGui::Text("  Rotate: Right-Click + Drag");
+		ImGui::Text("  Pan: Middle-Click + Drag");
+		ImGui::Text("  Zoom: Mouse Wheel");
+		ImGui::Separator();
+		ImGui::DragFloat3("AABB Min", &aabb1.min.x, 0.01f);
+		ImGui::DragFloat3("AABB Max", &aabb1.max.x, 0.01f);
 		ImGui::DragFloat3("Segment Origin", &segment.origin.x, 0.01f);
-		ImGui::DragFloat3("Segment Diff", &segment.diff.x, 0.01f);
-		ImGui::DragFloat3("canera r", &cameraRotate.x, 0.01f);
-		ImGui::DragFloat3("camera p", &cameraTranslate.x, 0.01f);
+		ImGui::DragFloat3("Segment End", &segment.diff.x, 0.01f);
+		ImGui::Separator();
+		ImGui::DragFloat3("Camera Rotate", &cameraRotate.x, 0.01f);
+		ImGui::DragFloat3("Camera Translate", &cameraTranslate.x, 0.01f);
 		ImGui::End();
 
 		///
